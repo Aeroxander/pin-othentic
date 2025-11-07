@@ -1,0 +1,85 @@
+version: '3.8'
+
+services:
+  # Kubo IPFS node
+  ipfs:
+    image: ipfs/kubo:latest
+    container_name: pinception-ipfs
+    ports:
+      - "4001:4001/tcp"      # libp2p swarm TCP
+      - "4001:4001/udp"      # libp2p swarm UDP (QUIC)
+      - "5001:5001"          # HTTP API
+      - "8080:8080"          # Gateway
+    volumes:
+      - ipfs_data:/data/ipfs
+    environment:
+      - IPFS_PROFILE=server
+    networks:
+      - pinception
+    healthcheck:
+      test: ["CMD", "ipfs", "id"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+  # Execution Service (Performer)
+  execution-service:
+    build:
+      context: .
+      dockerfile: ./services/execution/Dockerfile
+    container_name: pinception-execution
+    ports:
+      - "4003:4003"
+    environment:
+      - KUBO_API_URL=http://ipfs:5001
+      - EXECUTION_SERVICE_PORT=4003
+      - OPERATOR_PRIVATE_KEY=${OPERATOR_PRIVATE_KEY}
+      - CHUNK_SIZE=${CHUNK_SIZE:-262144}
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+    depends_on:
+      ipfs:
+        condition: service_healthy
+    networks:
+      - pinception
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4003/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+  # Validation Service (Attester)
+  validation-service:
+    build:
+      context: .
+      dockerfile: ./services/validation/Dockerfile
+    container_name: pinception-validation
+    ports:
+      - "4004:4004"
+    environment:
+      - KUBO_API_URL=http://ipfs:5001
+      - VALIDATION_SERVICE_PORT=4004
+      - OPERATOR_ADDRESS=${OPERATOR_ADDRESS:-0xBA56383F07Cd882dfEAbc7D6068Fd5D3bE844b64}
+      - SKIP_NODE_REACHABILITY_CHECK=true
+      - CHUNK_SIZE=${CHUNK_SIZE:-262144}
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+    depends_on:
+      ipfs:
+        condition: service_healthy
+    networks:
+      - pinception
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4004/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+volumes:
+  ipfs_data:
+    driver: local
+
+networks:
+  pinception:
+    driver: bridge

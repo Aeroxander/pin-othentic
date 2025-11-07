@@ -1,0 +1,51 @@
+{
+  "name": "pinception-othentic",
+  "version": "1.0.0",
+  "description": "Decentralized IPFS Pinning Service built on EigenLayer using Othentic Stack",
+  "private": true,
+  "workspaces": [
+    "services/shared",
+    "services/execution",
+    "services/validation",
+    "browser-test"
+  ],
+  "scripts": {
+    "build": "npm run build:shared && npm run build:execution && npm run build:validation",
+    "build:shared": "cd services/shared && npm run build",
+    "build:execution": "cd services/execution && npm run build",
+    "build:validation": "cd services/validation && npm run build",
+    "dev:execution": "cd services/execution && npm run dev",
+    "dev:validation": "cd services/validation && npm run dev",
+    "dev:browser": "cd browser-test && npm run dev",
+    "test": "npm run test --workspaces",
+    "test:e2e": "bash test/run-e2e-tests.sh",
+    "test:e2e:initial-pin": "cd test/e2e && npm install && npm run test:initial-pin",
+    "test:e2e:periodic": "cd test/e2e && npm install && npm run test:periodic-check",
+    "test:e2e:challenge": "cd test/e2e && npm install && npm run test:challenge",
+    "lint": "npm run lint --workspaces",
+    "docker:up": "docker-compose up -d",
+    "docker:down": "docker-compose down",
+    "docker:logs": "docker-compose logs -f",
+    "docker:build": "docker-compose build",
+    "docker:restart": "docker-compose down && docker-compose up -d"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yourusername/pinception-othentic.git"
+  },
+  "keywords": [
+    "ipfs",
+    "pinning",
+    "eigenlayer",
+    "avs",
+    "othentic",
+    "decentralized",
+    "blockchain"
+  ],
+  "author": "Pinception Contributors",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "typescript": "^5.3.2"
+  }
+}

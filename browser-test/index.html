@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pinception WebTransport Test</title>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 20px;
+      background: #f5f5f5;
+    }
+    .container {
+      background: white;
+      border-radius: 8px;
+      padding: 24px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    h1 {
+      color: #333;
+      margin-top: 0;
+    }
+    .section {
+      margin: 24px 0;
+      padding: 16px;
+      background: #f9f9f9;
+      border-radius: 4px;
+    }
+    .section h2 {
+      margin-top: 0;
+      font-size: 18px;
+      color: #555;
+    }
+    input, button {
+      padding: 8px 16px;
+      font-size: 14px;
+      border-radius: 4px;
+      border: 1px solid #ddd;
+    }
+    input {
+      width: 500px;
+      margin-right: 8px;
+    }
+    button {
+      background: #4CAF50;
+      color: white;
+      border: none;
+      cursor: pointer;
+    }
+    button:hover {
+      background: #45a049;
+    }
+    button:disabled {
+      background: #ccc;
+      cursor: not-allowed;
+    }
+    .log {
+      background: #1e1e1e;
+      color: #00ff00;
+      padding: 16px;
+      border-radius: 4px;
+      font-family: 'Courier New', monospace;
+      font-size: 12px;
+      max-height: 400px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+    }
+    .status {
+      display: inline-block;
+      padding: 4px 12px;
+      border-radius: 12px;
+      font-size: 12px;
+      font-weight: 600;
+      margin-left: 8px;
+    }
+    .status.connected {
+      background: #4CAF50;
+      color: white;
+    }
+    .status.disconnected {
+      background: #f44336;
+      color: white;
+    }
+    .status.connecting {
+      background: #FF9800;
+      color: white;
+    }
+    .success {
+      color: #00ff00;
+    }
+    .error {
+      color: #ff4444;
+    }
+    .info {
+      color: #00ccff;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🔒 Pinception WebTransport Test</h1>
+    <p>Browser-based end-to-end test for IPFS file retrieval via WebTransport</p>
+
+    <div class="section">
+      <h2>Connection Status <span id="status" class="status disconnected">Disconnected</span></h2>
+      <div>
+        <input 
+          type="text" 
+          id="operatorMultiaddr" 
+          placeholder="/ip4/127.0.0.1/udp/4001/quic-v1/webtransport/certhash/.../p2p/12D3KooW..."
+          value=""
+        />
+        <button id="connectBtn" onclick="connect()">Connect</button>
+        <button id="disconnectBtn" onclick="disconnect()" disabled>Disconnect</button>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>Fetch File from IPFS</h2>
+      <div>
+        <input 
+          type="text" 
+          id="cid" 
+          placeholder="QmXxxx... or bafyxxx..."
+        />
+        <button id="fetchBtn" onclick="fetchFile()" disabled>Fetch File</button>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>Console Log</h2>
+      <div id="log" class="log">Waiting for action...</div>
+    </div>
+  </div>
+
+  <script type="module" src="/src/main.ts"></script>
+</body>
+</html>
