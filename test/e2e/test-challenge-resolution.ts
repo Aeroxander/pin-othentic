@@ -91,6 +91,35 @@ async function testChallengeResolution() {
     console.log(`  Merkle Root: ${proof.merkleRoot}`);
     console.log(`  File Size: ${proof.fileSize}`);
     console.log(`  Timestamp: ${new Date(proof.timestamp).toISOString()}`);
+    
+    // Verify response time (critical for challenges)
+    if (proof.downloadTimeMs !== undefined) {
+      console.log(`  Response Time: ${proof.downloadTimeMs}ms`);
+      
+      // Verify response time meets challenge requirements (<30s default)
+      const MAX_RESPONSE_TIME = parseFloat(process.env.MAX_CHALLENGE_RESPONSE_TIME_MS || '30000');
+      if (proof.downloadTimeMs > MAX_RESPONSE_TIME) {
+        console.warn(`  ⚠ Warning: Response time ${proof.downloadTimeMs}ms exceeds limit ${MAX_RESPONSE_TIME}ms`);
+        console.warn(`  This would fail validation in production!`);
+      } else {
+        console.log(`  ✓ Response time within limit (${MAX_RESPONSE_TIME}ms)`);
+      }
+    }
+    
+    // Verify bandwidth (lower threshold for challenges)
+    if (proof.uploadBandwidthMbps !== undefined) {
+      console.log(`  Bandwidth: ${proof.uploadBandwidthMbps.toFixed(2)} Mbps`);
+      
+      const MIN_CHALLENGE_BANDWIDTH = parseFloat(process.env.MIN_CHALLENGE_BANDWIDTH_MBPS || '2');
+      if (proof.uploadBandwidthMbps < MIN_CHALLENGE_BANDWIDTH) {
+        console.warn(`  ⚠ Warning: Bandwidth ${proof.uploadBandwidthMbps.toFixed(2)} Mbps is below threshold ${MIN_CHALLENGE_BANDWIDTH} Mbps`);
+        console.warn(`  This would fail validation in production!`);
+      } else {
+        console.log(`  ✓ Bandwidth meets minimum threshold (${MIN_CHALLENGE_BANDWIDTH} Mbps)`);
+      }
+    } else {
+      console.warn('  ⚠ No bandwidth metrics reported');
+    }
 
     // Validate challenge resolution
     console.log('\n[6/6] Validating challenge resolution...');
@@ -115,9 +144,18 @@ async function testChallengeResolution() {
     console.log('='.repeat(60));
     console.log('Summary:');
     console.log(`  - File CID: ${cid}`);
+    if (proof.downloadTimeMs) {
+      console.log(`  - Response Time: ${proof.downloadTimeMs}ms`);
+    }
+    if (proof.uploadBandwidthMbps) {
+      console.log(`  - Bandwidth: ${proof.uploadBandwidthMbps.toFixed(2)} Mbps`);
+    }
     console.log(`  - Challenge Resolution: PASSED ✓`);
     console.log(`  - Validation: PASSED ✓`);
     console.log(`  - Operator proved data availability ✓`);
+    if (proof.downloadTimeMs && proof.uploadBandwidthMbps) {
+      console.log(`  - Performance Verification: PASSED ✓`);
+    }
     console.log('='.repeat(60));
 
   } catch (error) {

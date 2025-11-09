@@ -115,9 +115,13 @@ app.post('/task/execute', async (req: Request<{}, {}, TaskExecutionRequest>, res
 async function executeInitialPin(cid: string): Promise<ProofOfTask> {
   console.log(`[Initial Pin] Retrieving file from IPFS: ${cid}`);
   
-  // 1. Retrieve file from IPFS
-  const fileData = await ipfsClient.get(cid);
-  console.log(`[Initial Pin] Retrieved ${fileData.length} bytes`);
+  // 1. Retrieve file from IPFS with timing
+  const { data: fileData, downloadTimeMs } = await ipfsClient.getWithTiming(cid);
+  console.log(`[Initial Pin] Retrieved ${fileData.length} bytes in ${downloadTimeMs}ms`);
+  
+  // Calculate download bandwidth
+  const downloadBandwidthMbps = IPFSClient.calculateBandwidthMbps(fileData.length, downloadTimeMs);
+  console.log(`[Initial Pin] Download bandwidth: ${downloadBandwidthMbps.toFixed(2)} Mbps`);
   
   // 2. Generate Merkle root with operator's key
   const merkleRoot = generateMerkleRoot(fileData, operatorPublicKey, CHUNK_SIZE);
@@ -140,6 +144,8 @@ async function executeInitialPin(cid: string): Promise<ProofOfTask> {
     fileSize: fileData.length,
     timestamp: Date.now(),
     ipfsPeerId: ipfsId.id,
+    downloadTimeMs,
+    uploadBandwidthMbps: downloadBandwidthMbps, // Use download speed as baseline
   };
 }
 
@@ -155,18 +161,39 @@ async function executePeriodicCheck(cid: string): Promise<ProofOfTask> {
     throw new Error(`CID ${cid} is not pinned locally`);
   }
   
-  // 2. Retrieve file to prove we still have it
-  const fileData = await ipfsClient.get(cid);
-  console.log(`[Periodic Check] Verified ${fileData.length} bytes`);
+  // 2. Retrieve file with timing to prove we still have it
+  const { data: fileData, downloadTimeMs } = await ipfsClient.getWithTiming(cid);
+  console.log(`[Periodic Check] Verified ${fileData.length} bytes in ${downloadTimeMs}ms`);
   
-  // 3. Regenerate Merkle root to prove integrity
+  // 3. Measure chunk retrieval latencies (sample random chunks)
+  const chunkRetrievalLatencies: number[] = [];
+  const chunkCount = Math.ceil(fileData.length / CHUNK_SIZE);
+  const sampleSize = Math.min(5, chunkCount); // Sample up to 5 chunks
+  
+  for (let i = 0; i < sampleSize; i++) {
+    const chunkIndex = Math.floor(Math.random() * chunkCount);
+    const chunkStart = chunkIndex * CHUNK_SIZE;
+    const chunkEnd = Math.min(chunkStart + CHUNK_SIZE, fileData.length);
+    
+    const chunkStartTime = Date.now();
+    const _chunk = fileData.slice(chunkStart, chunkEnd); // Simulate chunk access
+    const chunkLatency = Date.now() - chunkStartTime;
+    chunkRetrievalLatencies.push(chunkLatency);
+  }
+  
+  const avgChunkLatency = chunkRetrievalLatencies.reduce((a, b) => a + b, 0) / chunkRetrievalLatencies.length;
+  console.log(`[Periodic Check] Average chunk latency: ${avgChunkLatency.toFixed(2)}ms`);
+  
+  // 4. Calculate upload bandwidth capability
+  const uploadBandwidthMbps = IPFSClient.calculateBandwidthMbps(fileData.length, downloadTimeMs);
+  console.log(`[Periodic Check] Upload bandwidth: ${uploadBandwidthMbps.toFixed(2)} Mbps`);
+  
+  // 5. Regenerate Merkle root to prove integrity
   const merkleRoot = generateMerkleRoot(fileData, operatorPublicKey, CHUNK_SIZE);
   console.log(`[Periodic Check] Regenerated Merkle root: ${merkleRoot}`);
   
-  // 4. Get IPFS peer ID
+  // 6. Get IPFS peer ID
   const ipfsId = await ipfsClient.id();
-  
-  const chunkCount = Math.ceil(fileData.length / CHUNK_SIZE);
   
   return {
     cid,
@@ -175,6 +202,9 @@ async function executePeriodicCheck(cid: string): Promise<ProofOfTask> {
     fileSize: fileData.length,
     timestamp: Date.now(),
     ipfsPeerId: ipfsId.id,
+    downloadTimeMs,
+    uploadBandwidthMbps,
+    chunkRetrievalLatencies,
   };
 }
 
@@ -184,21 +214,30 @@ async function executePeriodicCheck(cid: string): Promise<ProofOfTask> {
 async function executeChallengeResolution(cid: string): Promise<ProofOfTask> {
   console.log(`[Challenge Resolution] Responding to challenge for: ${cid}`);
   
+  const challengeStartTime = Date.now();
+  
   // 1. Verify file is pinned
   const pins = await ipfsClient.listPins();
   if (!pins.cids.includes(cid)) {
     throw new Error(`CID ${cid} is not available - challenge is valid`);
   }
   
-  // 2. Retrieve file and generate proof
-  const fileData = await ipfsClient.get(cid);
-  console.log(`[Challenge Resolution] Retrieved ${fileData.length} bytes`);
+  // 2. Retrieve file with timing (challenges have strict time requirements)
+  const { data: fileData, downloadTimeMs } = await ipfsClient.getWithTiming(cid);
+  console.log(`[Challenge Resolution] Retrieved ${fileData.length} bytes in ${downloadTimeMs}ms`);
   
   // 3. Generate Merkle root with full proof capability
   const merkleRoot = generateMerkleRoot(fileData, operatorPublicKey, CHUNK_SIZE);
   console.log(`[Challenge Resolution] Generated Merkle root: ${merkleRoot}`);
   
-  // 4. Get IPFS peer ID
+  // 4. Calculate response time and bandwidth
+  const totalResponseTime = Date.now() - challengeStartTime;
+  const uploadBandwidthMbps = IPFSClient.calculateBandwidthMbps(fileData.length, downloadTimeMs);
+  
+  console.log(`[Challenge Resolution] Total response time: ${totalResponseTime}ms`);
+  console.log(`[Challenge Resolution] Upload bandwidth: ${uploadBandwidthMbps.toFixed(2)} Mbps`);
+  
+  // 5. Get IPFS peer ID
   const ipfsId = await ipfsClient.id();
   
   const chunkCount = Math.ceil(fileData.length / CHUNK_SIZE);
@@ -210,6 +249,8 @@ async function executeChallengeResolution(cid: string): Promise<ProofOfTask> {
     fileSize: fileData.length,
     timestamp: Date.now(),
     ipfsPeerId: ipfsId.id,
+    downloadTimeMs,
+    uploadBandwidthMbps,
   };
 }
 

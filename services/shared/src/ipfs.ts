@@ -58,6 +58,53 @@ export class IPFSClient {
   }
 
   /**
+   * Get data from IPFS with timing information (for bandwidth measurement)
+   */
+  async getWithTiming(cid: string): Promise<{ data: Buffer; downloadTimeMs: number }> {
+    const startTime = Date.now();
+    const data = await this.get(cid);
+    const downloadTimeMs = Date.now() - startTime;
+    return { data, downloadTimeMs };
+  }
+
+  /**
+   * Calculate bandwidth in Mbps from bytes and milliseconds
+   */
+  static calculateBandwidthMbps(bytes: number, milliseconds: number): number {
+    if (milliseconds === 0) return 0;
+    const megabits = (bytes * 8) / 1_000_000;
+    const seconds = milliseconds / 1000;
+    return megabits / seconds;
+  }
+
+  /**
+   * Get IPFS bandwidth stats from Kubo
+   */
+  async getBandwidthStats(): Promise<{ totalIn: number; totalOut: number; rateIn: number; rateOut: number }> {
+    const response = await fetch(`${this.apiUrl}/api/v0/stats/bw`, {
+      method: 'POST',
+    });
+
+    if (!response.ok) {
+      throw new Error(`IPFS stats/bw failed: ${response.statusText}`);
+    }
+
+    const result = await response.json() as {
+      TotalIn: number;
+      TotalOut: number;
+      RateIn: number;
+      RateOut: number;
+    };
+
+    return {
+      totalIn: result.TotalIn,
+      totalOut: result.TotalOut,
+      rateIn: result.RateIn,
+      rateOut: result.RateOut,
+    };
+  }
+
+  /**
    * Pin CID to ensure persistence
    */
   async pin(cid: string): Promise<{ pins: string[] }> {
