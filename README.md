@@ -20,21 +20,10 @@ Pinception provides cryptoeconomically secured IPFS content persistence on Eigen
 
 ### Components
 
-1. **Execution Service** (Performer) - Pins files, generates Merkle proofs, and tracks bandwidth metrics
-2. **Validation Service** (Attester) - Independently verifies file availability and bandwidth performance
+1. **Execution Service** (Performer) - Pins files and generates Merkle proofs
+2. **Validation Service** (Attester) - Independently verifies file availability
 3. **Kubo IPFS** - IPFS node with WebTransport enabled
 4. **Othentic Contracts** - Pre-deployed L1/L2 infrastructure
-
-### Proof of Bandwidth Integration
-
-This AVS integrates **Proof of Bandwidth** verification to ensure operators not only store files but can serve them efficiently:
-
-- **Measurement**: Download/upload times tracked during all task executions
-- **Thresholds**: Minimum 5 Mbps for periodic checks, 2 Mbps for challenges
-- **Validation**: Attesters independently measure retrieval performance
-- **Enforcement**: Bandwidth failures trigger validation rejection and slashing
-
-This guarantees users receive both **storage reliability** and **retrieval performance** from a single unified service.
 
 See [design-othentic.md](./design-othentic.md) for detailed architecture documentation.
 
@@ -165,23 +154,18 @@ See [Deployment Guide](./docs/deployment.md) for production deployment instructi
 
 ### Task 1: Initial Pin & Verification
 - User submits CID + payment
-- Performer downloads (with timing), generates Merkle proof, pins locally
-- Attesters independently verify data integrity and measure bandwidth
-- **Bandwidth**: Download time recorded, baseline performance established
+- Performer downloads, generates Merkle proof, pins locally
+- Attesters independently verify
 - Reward distributed on >⅔ quorum
 
 ### Task 2: Periodic Retrievability Check
-- Scheduled proof of continued storage and performance
-- Performer provides Merkle proof + bandwidth metrics (chunk latencies)
-- Attesters validate file availability and enforce **minimum 5 Mbps** threshold
-- **Slashing**: Bandwidth below 5 Mbps = validation failure
+- Scheduled proof of continued storage
+- Performer provides Merkle proof of random chunks
 - 66% failure rate triggers heavy slashing
 
 ### Task 3: Challenge Resolution
 - User challenges alleged unavailability
-- Operator must provide full Merkle proof within **30 second** response time
-- Attesters validate proof and require **minimum 2 Mbps** bandwidth
-- **Slashing**: Slow response or low bandwidth = challenge upheld
+- Operator must provide full Merkle branch proof
 - Challenger rewarded if proof fails
 
 ## API Reference
@@ -204,7 +188,7 @@ See [Deployment Guide](./docs/deployment.md) for production deployment instructi
 ```json
 {
   "success": true,
-  "proofOfTask": "{\"cid\":\"QmXxxx...\",\"merkleRoot\":\"0xabc...\",\"chunkCount\":4,\"fileSize\":1024,\"timestamp\":1699380000,\"ipfsPeerId\":\"12D3KooW...\",\"downloadTimeMs\":245,\"uploadBandwidthMbps\":8.5}"
+  "proofOfTask": "{\"cid\":\"QmXxxx...\",\"merkleRoot\":\"0xabc...\",\"chunkCount\":4,\"fileSize\":1024,\"timestamp\":1699380000,\"ipfsPeerId\":\"12D3KooW...\"}"
 }
 ```
 
@@ -226,87 +210,6 @@ See [Deployment Guide](./docs/deployment.md) for production deployment instructi
 {
   "valid": true
 }
-```
-
-## Proof of Bandwidth Details
-
-### How It Works
-
-Proof of Bandwidth (PoB) validates that operators can serve files efficiently, not just store them. This is critical for a practical pinning service where users need fast retrieval.
-
-**Measurement Points:**
-
-1. **Initial Pin (Task 1)**: Baseline bandwidth established during first download
-2. **Periodic Check (Task 2)**: Primary enforcement - operators must maintain ≥5 Mbps
-3. **Challenge Resolution (Task 3)**: Response time <30s + bandwidth ≥2 Mbps required
-
-**Metrics Collected:**
-
-- `downloadTimeMs`: Time to retrieve file from IPFS network
-- `uploadBandwidthMbps`: Calculated transfer speed (file size / time)
-- `chunkRetrievalLatencies`: Per-chunk timing for sampling tests
-
-**Validation Process:**
-
-1. Operator executes task and reports bandwidth metrics in proof
-2. Attesters independently retrieve the same file with timing
-3. Attesters compare their measurements with operator's claims
-4. Bandwidth below threshold = validation failure = slashing
-
-**Anti-Gaming Measures:**
-
-- **Statistical validation**: Operator's bandwidth must be within 30-200% of attester measurements
-- **Multiple attesters**: Median measurement used to eliminate outliers
-- **Random chunk sampling**: Prevents pre-positioning attacks
-- **Time-bound challenges**: Operator can't delay or prioritize traffic
-
-### Performance Requirements
-
-| Task Type | Min Bandwidth | Max Latency | Consequence |
-|-----------|---------------|-------------|-------------|
-| Initial Pin | None (baseline) | N/A | Warning if anomalous |
-| Periodic Check | 5 Mbps | 500ms/chunk | Validation failure |
-| Challenge | 2 Mbps | 30s total | Challenge upheld |
-
-**File Size Handling:**
-
-- **Small files (<1MB)**: Latency-focused validation
-- **Medium files (1-100MB)**: Full bandwidth measurement
-- **Large files (>100MB)**: Chunk sampling for periodic checks
-
-### Slashing Policy
-
-**Bandwidth-Related Failures:**
-
-- **Below 5 Mbps (periodic check)**: Validation rejection → slashing if <66% quorum
-- **Below 2 Mbps (challenge)**: Challenge upheld → operator slashed, challenger rewarded
-- **Timeout (>30s response)**: Automatic challenge validation failure
-- **Suspicious reporting**: Bandwidth ratio <0.3x attester = validation failure
-
-**Graduated Enforcement:**
-
-The system uses a two-tier approach:
-1. **Soft failures** (1-2 instances): Warnings, no immediate slashing
-2. **Hard failures** (>66% of checks): Heavy slashing via Othentic quorum mechanism
-
-This balances network variability tolerance with accountability.
-
-### Configuration
-
-Operators can tune bandwidth thresholds via environment variables to match their network capacity and deployment region:
-
-```bash
-# Recommended for US/EU operators with good connectivity
-MIN_BANDWIDTH_MBPS=10
-MIN_CHALLENGE_BANDWIDTH_MBPS=5
-
-# Minimum acceptable (may reduce rewards)
-MIN_BANDWIDTH_MBPS=5
-MIN_CHALLENGE_BANDWIDTH_MBPS=2
-
-# Testing/development (disable enforcement)
-MIN_BANDWIDTH_MBPS=0.1
-SKIP_NODE_REACHABILITY_CHECK=true
 ```
 
 ## Development
@@ -355,12 +258,6 @@ See [.env.example](./.env.example) for all configuration options.
 - `CHUNK_SIZE` - File chunk size for Merkle trees (default: 256KB)
 - `EXECUTION_SERVICE_PORT` - Execution Service port (default: 4003)
 - `VALIDATION_SERVICE_PORT` - Validation Service port (default: 4004)
-
-**Bandwidth Configuration:**
-- `MIN_BANDWIDTH_MBPS` - Minimum bandwidth for periodic checks (default: 5 Mbps)
-- `MIN_CHALLENGE_BANDWIDTH_MBPS` - Minimum bandwidth for challenges (default: 2 Mbps)
-- `MAX_CHUNK_LATENCY_MS` - Maximum chunk retrieval latency (default: 500ms)
-- `MAX_CHALLENGE_RESPONSE_TIME_MS` - Maximum challenge response time (default: 30000ms)
 
 ### Docker Compose
 
@@ -451,10 +348,8 @@ docker-compose logs execution-service
 ## Roadmap
 
 - [x] Core Execution/Validation Services
-- [x] Proof of Bandwidth integration
 - [x] Docker Compose setup
 - [x] Browser WebTransport test
-- [ ] Bandwidth metrics dashboard
 - [ ] Testnet deployment scripts
 - [ ] Operator dashboard (monitoring UI)
 - [ ] User-facing pin request API

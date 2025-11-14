@@ -5,10 +5,6 @@ export interface ProofOfTask {
   fileSize: number;
   timestamp: number;
   ipfsPeerId: string;
-  // Proof of Bandwidth metrics
-  downloadTimeMs?: number;           // Time taken to download file from IPFS network
-  uploadBandwidthMbps?: number;      // Upload speed when serving to validators
-  chunkRetrievalLatencies?: number[]; // Per-chunk latency samples (milliseconds)
 }
 
 export interface TaskData {

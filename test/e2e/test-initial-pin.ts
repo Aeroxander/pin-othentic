@@ -84,21 +84,6 @@ async function testInitialPin() {
     console.log(`  Chunk Count: ${proof.chunkCount}`);
     console.log(`  File Size: ${proof.fileSize}`);
     console.log(`  IPFS Peer ID: ${proof.ipfsPeerId}`);
-    
-    // Verify bandwidth metrics are present
-    if (proof.downloadTimeMs !== undefined) {
-      console.log(`  Download Time: ${proof.downloadTimeMs}ms`);
-    }
-    if (proof.uploadBandwidthMbps !== undefined) {
-      console.log(`  Bandwidth: ${proof.uploadBandwidthMbps.toFixed(2)} Mbps`);
-      
-      // Verify bandwidth is reasonable (should be > 0 for any file)
-      if (proof.uploadBandwidthMbps <= 0) {
-        throw new Error('Bandwidth metric is invalid (≤0)');
-      }
-    } else {
-      console.warn('  ⚠ No bandwidth metrics reported');
-    }
 
     // Verify file is pinned on execution service
     const pinnedOnExec = await isPinned(context.ipfsApiUrl, cid);
@@ -143,18 +128,9 @@ async function testInitialPin() {
     console.log(`  - File Size: ${size} bytes`);
     console.log(`  - Merkle Root: ${proof.merkleRoot}`);
     console.log(`  - Chunks: ${proof.chunkCount}`);
-    if (proof.downloadTimeMs) {
-      console.log(`  - Download Time: ${proof.downloadTimeMs}ms`);
-    }
-    if (proof.uploadBandwidthMbps) {
-      console.log(`  - Bandwidth: ${proof.uploadBandwidthMbps.toFixed(2)} Mbps`);
-    }
     console.log(`  - Execution: PASSED ✓`);
     console.log(`  - Validation: PASSED ✓`);
     console.log(`  - Retrieval: PASSED ✓`);
-    if (proof.uploadBandwidthMbps) {
-      console.log(`  - Bandwidth Verification: PASSED ✓`);
-    }
     console.log('='.repeat(60));
 
   } catch (error) {

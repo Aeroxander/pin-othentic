@@ -90,40 +90,6 @@ async function testPeriodicCheck() {
     console.log(`  Merkle Root: ${proof.merkleRoot}`);
     console.log(`  File Size: ${proof.fileSize}`);
     console.log(`  Timestamp: ${new Date(proof.timestamp).toISOString()}`);
-    
-    // Verify bandwidth metrics (critical for periodic checks)
-    if (proof.downloadTimeMs !== undefined) {
-      console.log(`  Download Time: ${proof.downloadTimeMs}ms`);
-    }
-    if (proof.uploadBandwidthMbps !== undefined) {
-      console.log(`  Bandwidth: ${proof.uploadBandwidthMbps.toFixed(2)} Mbps`);
-      
-      // Verify bandwidth meets minimum threshold (5 Mbps default)
-      const MIN_BANDWIDTH = parseFloat(process.env.MIN_BANDWIDTH_MBPS || '5');
-      if (proof.uploadBandwidthMbps < MIN_BANDWIDTH) {
-        console.warn(`  ⚠ Warning: Bandwidth ${proof.uploadBandwidthMbps.toFixed(2)} Mbps is below threshold ${MIN_BANDWIDTH} Mbps`);
-        console.warn(`  This would fail validation in production!`);
-      } else {
-        console.log(`  ✓ Bandwidth meets minimum threshold (${MIN_BANDWIDTH} Mbps)`);
-      }
-    } else {
-      console.warn('  ⚠ No bandwidth metrics reported - this would fail validation in production');
-    }
-    
-    // Verify chunk retrieval latencies (if present)
-    if (proof.chunkRetrievalLatencies && proof.chunkRetrievalLatencies.length > 0) {
-      const avgLatency = proof.chunkRetrievalLatencies.reduce((a: number, b: number) => a + b, 0) / proof.chunkRetrievalLatencies.length;
-      const maxLatency = Math.max(...proof.chunkRetrievalLatencies);
-      console.log(`  Chunk Latencies:`);
-      console.log(`    - Average: ${avgLatency.toFixed(2)}ms`);
-      console.log(`    - Maximum: ${maxLatency.toFixed(2)}ms`);
-      console.log(`    - Samples: ${proof.chunkRetrievalLatencies.length}`);
-      
-      const MAX_LATENCY = parseFloat(process.env.MAX_CHUNK_LATENCY_MS || '500');
-      if (maxLatency > MAX_LATENCY) {
-        console.warn(`    ⚠ Max latency ${maxLatency.toFixed(2)}ms exceeds threshold ${MAX_LATENCY}ms`);
-      }
-    }
 
     // Validate periodic check
     console.log('\n[6/6] Validating periodic check...');
@@ -147,18 +113,8 @@ async function testPeriodicCheck() {
     console.log('='.repeat(60));
     console.log('Summary:');
     console.log(`  - File CID: ${cid}`);
-    if (proof.uploadBandwidthMbps) {
-      console.log(`  - Bandwidth: ${proof.uploadBandwidthMbps.toFixed(2)} Mbps`);
-    }
-    if (proof.chunkRetrievalLatencies && proof.chunkRetrievalLatencies.length > 0) {
-      const avgLatency = proof.chunkRetrievalLatencies.reduce((a: number, b: number) => a + b, 0) / proof.chunkRetrievalLatencies.length;
-      console.log(`  - Avg Chunk Latency: ${avgLatency.toFixed(2)}ms`);
-    }
     console.log(`  - Periodic Check: PASSED ✓`);
     console.log(`  - Validation: PASSED ✓`);
-    if (proof.uploadBandwidthMbps) {
-      console.log(`  - Bandwidth Verification: PASSED ✓`);
-    }
     console.log('='.repeat(60));
 
   } catch (error) {

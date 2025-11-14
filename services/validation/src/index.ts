@@ -105,9 +105,9 @@ async function validateInitialPin(proof: ProofOfTask): Promise<boolean> {
   console.log(`[Initial Pin Validation] Validating: ${proof.cid}`);
   
   try {
-    // 1. Independently retrieve file from IPFS with timing
-    const { data: fileData, downloadTimeMs } = await ipfsClient.getWithTiming(proof.cid);
-    console.log(`[Initial Pin Validation] Retrieved ${fileData.length} bytes in ${downloadTimeMs}ms`);
+    // 1. Independently retrieve file from IPFS
+    const fileData = await ipfsClient.get(proof.cid);
+    console.log(`[Initial Pin Validation] Retrieved ${fileData.length} bytes`);
     
     // 2. Verify file size matches proof
     if (fileData.length !== proof.fileSize) {
@@ -127,22 +127,7 @@ async function validateInitialPin(proof: ProofOfTask): Promise<boolean> {
     
     console.log(`[Initial Pin Validation] Merkle root verified successfully`);
     
-    // 4. Validate bandwidth performance (if reported)
-    if (proof.downloadTimeMs && proof.uploadBandwidthMbps) {
-      const validatorBandwidthMbps = IPFSClient.calculateBandwidthMbps(fileData.length, downloadTimeMs);
-      console.log(`[Initial Pin Validation] Operator bandwidth: ${proof.uploadBandwidthMbps.toFixed(2)} Mbps`);
-      console.log(`[Initial Pin Validation] Validator bandwidth: ${validatorBandwidthMbps.toFixed(2)} Mbps`);
-      
-      // Check if operator's reported bandwidth is reasonable (within network variance)
-      // Allow for network variability - operator should be within 50% of validator's measurement
-      const bandwidthRatio = proof.uploadBandwidthMbps / validatorBandwidthMbps;
-      if (bandwidthRatio < 0.5 || bandwidthRatio > 2.0) {
-        console.warn(`[Initial Pin Validation] Suspicious bandwidth reporting: ratio ${bandwidthRatio.toFixed(2)}`);
-        // For initial pin, this is a warning not a failure
-      }
-    }
-    
-    // 5. Pin locally for redundancy
+    // 4. Pin locally for redundancy
     await ipfsClient.pin(proof.cid);
     console.log(`[Initial Pin Validation] Pinned CID locally for redundancy`);
     
@@ -161,9 +146,9 @@ async function validatePeriodicCheck(proof: ProofOfTask): Promise<boolean> {
   console.log(`[Periodic Check Validation] Validating: ${proof.cid}`);
   
   try {
-    // 1. Try to retrieve file from IPFS network with timing
-    const { data: fileData, downloadTimeMs } = await ipfsClient.getWithTiming(proof.cid);
-    console.log(`[Periodic Check Validation] Retrieved ${fileData.length} bytes in ${downloadTimeMs}ms`);
+    // 1. Try to retrieve file from IPFS network
+    const fileData = await ipfsClient.get(proof.cid);
+    console.log(`[Periodic Check Validation] Retrieved ${fileData.length} bytes`);
     
     // 2. Verify file size
     if (fileData.length !== proof.fileSize) {
@@ -182,48 +167,7 @@ async function validatePeriodicCheck(proof: ProofOfTask): Promise<boolean> {
     
     console.log(`[Periodic Check Validation] File is available and intact`);
     
-    // 4. Validate bandwidth performance (CRITICAL for periodic checks)
-    const MIN_BANDWIDTH_MBPS = parseFloat(process.env.MIN_BANDWIDTH_MBPS || '5');
-    
-    if (proof.uploadBandwidthMbps !== undefined) {
-      console.log(`[Periodic Check Validation] Operator bandwidth: ${proof.uploadBandwidthMbps.toFixed(2)} Mbps (min: ${MIN_BANDWIDTH_MBPS} Mbps)`);
-      
-      // Enforce minimum bandwidth threshold
-      if (proof.uploadBandwidthMbps < MIN_BANDWIDTH_MBPS) {
-        console.warn(`[Periodic Check Validation] Bandwidth below threshold: ${proof.uploadBandwidthMbps.toFixed(2)} < ${MIN_BANDWIDTH_MBPS} Mbps`);
-        return false;
-      }
-      
-      // Validate against our own measurement
-      const validatorBandwidthMbps = IPFSClient.calculateBandwidthMbps(fileData.length, downloadTimeMs);
-      console.log(`[Periodic Check Validation] Validator bandwidth: ${validatorBandwidthMbps.toFixed(2)} Mbps`);
-      
-      // If validator's bandwidth is significantly better, operator may be throttling
-      const bandwidthRatio = proof.uploadBandwidthMbps / validatorBandwidthMbps;
-      if (bandwidthRatio < 0.3) {
-        console.warn(`[Periodic Check Validation] Operator bandwidth suspiciously low: ratio ${bandwidthRatio.toFixed(2)}`);
-        return false;
-      }
-    } else {
-      console.warn(`[Periodic Check Validation] No bandwidth metrics reported`);
-      // For backward compatibility, don't fail if metrics missing
-    }
-    
-    // 5. Validate chunk retrieval latencies (if provided)
-    if (proof.chunkRetrievalLatencies && proof.chunkRetrievalLatencies.length > 0) {
-      const avgLatency = proof.chunkRetrievalLatencies.reduce((a, b) => a + b, 0) / proof.chunkRetrievalLatencies.length;
-      const maxLatency = Math.max(...proof.chunkRetrievalLatencies);
-      console.log(`[Periodic Check Validation] Chunk latencies - avg: ${avgLatency.toFixed(2)}ms, max: ${maxLatency.toFixed(2)}ms`);
-      
-      // For large files, chunk latency should be reasonable
-      const MAX_CHUNK_LATENCY_MS = parseFloat(process.env.MAX_CHUNK_LATENCY_MS || '500');
-      if (maxLatency > MAX_CHUNK_LATENCY_MS) {
-        console.warn(`[Periodic Check Validation] Chunk latency too high: ${maxLatency.toFixed(2)}ms > ${MAX_CHUNK_LATENCY_MS}ms`);
-        // Warning only - latency can vary with file size
-      }
-    }
-    
-    // 6. Try connecting to operator's IPFS peer to verify they're hosting
+    // 4. Try connecting to operator's IPFS peer to verify they're hosting
     try {
       const operatorMultiaddr = await resolveOperatorMultiaddr(proof.ipfsPeerId);
       await ipfsClient.swarmConnect(operatorMultiaddr);
@@ -248,11 +192,9 @@ async function validateChallengeResolution(proof: ProofOfTask): Promise<boolean>
   console.log(`[Challenge Resolution Validation] Validating: ${proof.cid}`);
   
   try {
-    // 1. Attempt to retrieve file with timing (challenges have strict time limits)
-    const validationStartTime = Date.now();
-    const { data: fileData, downloadTimeMs } = await ipfsClient.getWithTiming(proof.cid);
-    const totalValidationTime = Date.now() - validationStartTime;
-    console.log(`[Challenge Resolution Validation] File retrieved: ${fileData.length} bytes in ${downloadTimeMs}ms`);
+    // 1. Attempt to retrieve file
+    const fileData = await ipfsClient.get(proof.cid);
+    console.log(`[Challenge Resolution Validation] File retrieved: ${fileData.length} bytes`);
     
     // 2. Verify file size
     if (fileData.length !== proof.fileSize) {
@@ -271,31 +213,7 @@ async function validateChallengeResolution(proof: ProofOfTask): Promise<boolean>
     
     console.log(`[Challenge Resolution Validation] Challenge refuted - operator has valid data`);
     
-    // 4. Validate response time (challenges require prompt responses)
-    const MAX_CHALLENGE_RESPONSE_TIME_MS = parseFloat(process.env.MAX_CHALLENGE_RESPONSE_TIME_MS || '30000'); // 30 seconds default
-    
-    if (proof.downloadTimeMs !== undefined) {
-      console.log(`[Challenge Resolution Validation] Operator response time: ${proof.downloadTimeMs}ms (max: ${MAX_CHALLENGE_RESPONSE_TIME_MS}ms)`);
-      
-      // Operator must respond within time limit
-      if (proof.downloadTimeMs > MAX_CHALLENGE_RESPONSE_TIME_MS) {
-        console.warn(`[Challenge Resolution Validation] Response too slow: ${proof.downloadTimeMs}ms > ${MAX_CHALLENGE_RESPONSE_TIME_MS}ms`);
-        return false;
-      }
-    }
-    
-    // 5. Validate bandwidth during challenge (should still be adequate under pressure)
-    if (proof.uploadBandwidthMbps !== undefined) {
-      const MIN_CHALLENGE_BANDWIDTH_MBPS = parseFloat(process.env.MIN_CHALLENGE_BANDWIDTH_MBPS || '2'); // Lower threshold for challenges
-      console.log(`[Challenge Resolution Validation] Operator bandwidth: ${proof.uploadBandwidthMbps.toFixed(2)} Mbps (min: ${MIN_CHALLENGE_BANDWIDTH_MBPS} Mbps)`);
-      
-      if (proof.uploadBandwidthMbps < MIN_CHALLENGE_BANDWIDTH_MBPS) {
-        console.warn(`[Challenge Resolution Validation] Bandwidth too low during challenge: ${proof.uploadBandwidthMbps.toFixed(2)} < ${MIN_CHALLENGE_BANDWIDTH_MBPS} Mbps`);
-        return false;
-      }
-    }
-    
-    // 6. Verify we can connect to operator's node
+    // 4. Verify we can connect to operator's node
     // Note: In development/testing, this may not work due to network isolation
     // In production, this would verify the operator's node is actually online
     const skipNodeReachabilityCheck = process.env.SKIP_NODE_REACHABILITY_CHECK === 'true';
